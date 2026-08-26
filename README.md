@@ -46,7 +46,7 @@ YouTube link
 YTX needs Python 3.10 or newer.
 
 ```bash
-git clone https://github.com/YOUR-ACCOUNT/ytx.git
+git clone https://github.com/recepbalibey/ytx.git
 cd ytx
 python3 -m pip install .
 ```
@@ -120,6 +120,24 @@ Useful options:
 ytx web --port 9000
 ytx web --no-browser
 ```
+
+### See the web app
+
+1. Open YTX to paste a video, playlist, or channel link. Local transcription is ready when YouTube has no captions.
+
+![YTX web app at first opening](interface.png)
+
+2. Open More settings to choose YouTube access, transcription quality, output layout, output folder, and dates.
+
+![YTX web app settings](advancedexportoptions.png)
+
+3. Paste a playlist or channel link, then choose all videos, the newest videos, or manual selection.
+
+![YTX video selection choices](videoselection.png)
+
+4. With manual selection, search the list and choose only the videos you want to extract.
+
+![YTX manual video picker](extractor.png)
 
 ## Output files
 

@@ -50,6 +50,10 @@ dev = [
     "httpx>=0.27",
 ]
 
+[project.urls]
+Homepage = "https://github.com/recepbalibey/ytx"
+Issues = "https://github.com/recepbalibey/ytx/issues"
+
 [project.scripts]
 ytx = "ytx.cli:main"
 

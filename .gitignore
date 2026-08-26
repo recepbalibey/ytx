@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+.venv*
+venv/
+env/
+.env
+.env.*
+.envrc
+.direnv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# Linting
+.ruff_cache/
+.mypy_cache/
+
+# Logs
+*.log
+
+# Temp files
+*.tmp
+*.bak
+
+# YTX specific
+/output/
+cookies.txt
+*.cookies.txt
+audio/
+ytx_audio_*/
+
+# Local project notes and AI work files
+AI_HANDOFF.md
+BACKLOG.md
+.codex/
+.agents/
+
+# Security: never commit these
+*.pem
+*.key
+*.secret
+*.token
+secrets.json
+credentials.json
+service-account*.json
+.secrets/

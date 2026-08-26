@@ -1,0 +1,647 @@
+{% extends "base.html" %}
+{% block title %}YTX{% endblock %}
+
+{% block content %}
+<div class="home-hero">
+    <h1>YouTube Transcript Extractor</h1>
+    <p class="lead">Turn videos, playlists, and channels into clean transcripts.</p>
+</div>
+
+<div class="form-surface">
+    <form id="extract-form">
+        <div class="url-input-group">
+            <div class="url-input-wrap">
+                <input
+                    type="text"
+                    name="url"
+                    id="url-input"
+                    placeholder="Paste a YouTube URL"
+                    required
+                    autocomplete="off"
+                    autofocus
+                >
+                <div class="url-type-indicator" id="url-type-indicator" style="display:none;"></div>
+                <div class="url-examples">
+                    <code>youtube.com/watch?v=...</code>
+                    <code>youtube.com/playlist?list=...</code>
+                    <code>youtube.com/@channel</code>
+                </div>
+            </div>
+            <button type="submit" class="btn btn--primary" id="submit-btn">
+                Extract
+            </button>
+        </div>
+        <div id="form-error" class="form-error"></div>
+    </form>
+
+    <div class="options-grid" style="margin-top: 1rem;">
+        <div class="option-group" style="grid-column: 1 / -1;">
+            <label class="checkbox-group">
+                <input type="checkbox" name="transcribe_missing" id="transcribe_missing" checked>
+                <div>
+                    <div class="checkbox-label">Local fallback <span class="recommended-badge">Recommended</span></div>
+                    <div class="checkbox-desc">YTX uses YouTube captions first and automatically transcribes locally when needed.</div>
+                </div>
+            </label>
+            {% if not has_transcription %}
+            <div class="transcription-warning">
+                <div class="transcription-warning-title">Local transcription unavailable</div>
+                <div class="transcription-warning-install">
+                    Install with: <code id="install-cmd">pip install "ytx[transcription]"</code>
+                    <button type="button" class="btn btn--sm btn--ghost copy-install-btn" onclick="copyInstallCmd()">Copy</button>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="option-group">
+            <label for="language">Language</label>
+            <select name="language" id="language">
+                <option value="">Auto</option>
+                <option value="en">English</option>
+                <option value="tr">Turkish</option>
+                <option value="de">German</option>
+                <option value="fr">French</option>
+                <option value="es">Spanish</option>
+                <option value="it">Italian</option>
+                <option value="pt">Portuguese</option>
+                <option value="nl">Dutch</option>
+                <option value="pl">Polish</option>
+                <option value="ru">Russian</option>
+                <option value="ja">Japanese</option>
+                <option value="ko">Korean</option>
+                <option value="zh">Chinese</option>
+            </select>
+        </div>
+
+        <div class="option-group" id="video-scope-group" style="display:none;">
+            <label>Video selection</label>
+            <div class="radio-group">
+                <label class="radio-option">
+                    <input type="radio" name="video_scope" value="all" checked>
+                    All videos
+                </label>
+                <label class="radio-option">
+                    <input type="radio" name="video_scope" value="latest">
+                    Latest
+                    <input type="number" id="latest-count" value="15" min="1" style="display:none;">
+                </label>
+                <label class="radio-option">
+                    <input type="radio" name="video_scope" value="manual">
+                    Choose manually
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <div class="output-section" style="margin-top: 1rem;">
+        <div class="option-group" style="grid-column: 1 / -1;">
+            <label class="checkbox-label">Output</label>
+            <div class="checkbox-desc" style="margin-bottom: 0.5rem;">
+                Clean transcript: Markdown without timestamps, ready for AI tools.
+                <span class="recommended-badge">Recommended</span>
+            </div>
+            <div class="checkbox-desc" style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+                No extra format selection is required. YTX always creates a clean Markdown transcript.
+                For playlists/channels in flat mode, YTX also creates output.md with all completed transcripts combined.
+            </div>
+        </div>
+    </div>
+
+    <button type="button" class="more-options-toggle" id="more-settings-toggle" aria-expanded="true">
+        <span class="chevron">&#9660;</span> More settings
+    </button>
+    <div class="more-options-content" id="more-settings-content">
+        <div class="options-grid">
+            <div class="option-group" style="grid-column: 1 / -1;">
+                <label for="youtube_auth">YouTube access</label>
+                <select name="youtube_auth" id="youtube_auth">
+                    <option value="auto" selected>Automatic (Recommended)</option>
+                </select>
+                <span class="help-text" id="youtube-auth-help">
+                    Automatic: YTX first tries YouTube without browser authentication.
+                    Select a browser to use your signed-in session when YouTube requires sign-in.
+                    YTX does not store or export browser cookies.
+                </span>
+            </div>
+
+            <div class="option-group">
+                <label for="model">Transcription quality</label>
+                <select name="model" id="model">
+                    <option value="fast">Fast</option>
+                    <option value="balanced" selected>Balanced</option>
+                    <option value="best">Best</option>
+                </select>
+            </div>
+
+            <div class="option-group" style="grid-column: 1 / -1;">
+                <label for="output_layout">Output layout</label>
+                <select name="output_layout" id="output_layout">
+                    <option value="flat" selected>Flat</option>
+                    <option value="structured">Structured</option>
+                </select>
+                <span class="help-text">Flat: one file per video in the source folder. Structured: per-video directories.</span>
+            </div>
+
+            <div class="option-group">
+                <label for="output_dir">Output directory</label>
+                <input type="text" name="output_dir" id="output_dir" value="./output">
+            </div>
+
+            <div class="option-group">
+                <label for="after">Published after</label>
+                <input type="date" name="after" id="after">
+            </div>
+
+            <div class="option-group">
+                <label for="before">Published before</label>
+                <input type="date" name="before" id="before">
+            </div>
+        </div>
+    </div>
+
+    <button type="button" class="more-options-toggle" id="advanced-formats-toggle" aria-expanded="false">
+        <span class="chevron">&#9654;</span> Advanced export formats
+    </button>
+    <div class="more-options-content is-closed" id="advanced-formats-content">
+        <div class="options-grid">
+            <div class="option-group" style="grid-column: 1 / -1;">
+                <div class="format-group">
+                    <label><input type="checkbox" name="fmt_txt" value="txt"> Plain text <span class="format-desc">Simple .txt transcript without formatting</span></label>
+                    <label><input type="checkbox" name="fmt_json" value="json"> JSON <span class="format-desc">Structured data for scripts and software</span></label>
+                    <label><input type="checkbox" name="fmt_srt" value="srt"> SRT subtitles <span class="format-desc">Timed subtitle format for players and editors</span></label>
+                </div>
+            </div>
+
+            <div class="option-group" style="grid-column: 1 / -1;">
+                <label class="checkbox-group">
+                    <input type="checkbox" name="include_timestamps" id="include_timestamps">
+                    <div>
+                        <div class="checkbox-label">Include timestamps</div>
+                        <div class="checkbox-desc">Adds timestamps to human-readable transcript files.</div>
+                    </div>
+                </label>
+            </div>
+
+            <div class="option-group" style="grid-column: 1 / -1;">
+                <label class="checkbox-group">
+                    <input type="checkbox" name="combine_jsonl" id="combine_jsonl">
+                    <div>
+                        <div class="checkbox-label">JSONL dataset</div>
+                        <div class="checkbox-desc">One structured record per video, useful for data pipelines.</div>
+                    </div>
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="how-it-works">
+    <h2>How it works</h2>
+    <ol class="how-steps">
+        <li class="how-step">
+            <span class="step-num">01</span>
+            <div class="step-content">
+                <h4>Paste a YouTube URL</h4>
+                <p>Video, playlist, or channel.</p>
+            </div>
+        </li>
+        <li class="how-step">
+            <span class="step-num">02</span>
+            <div class="step-content">
+                <h4>YTX checks YouTube captions</h4>
+                <p>Existing captions are used first.</p>
+            </div>
+        </li>
+        <li class="how-step">
+            <span class="step-num">03</span>
+            <div class="step-content">
+                <h4>Local transcription fallback</h4>
+                <p>If captions are unavailable, faster-whisper creates the transcript.</p>
+            </div>
+        </li>
+        <li class="how-step">
+            <span class="step-num">04</span>
+            <div class="step-content">
+                <h4>Use the transcript</h4>
+                <p>Read, copy, or download.</p>
+            </div>
+        </li>
+    </ol>
+</div>
+
+<!-- Video selection screen (hidden by default) -->
+<div id="selection-screen" class="selection-screen" style="display:none;">
+    <div class="selection-header">
+        <h2 id="selection-title">Select videos</h2>
+        <p id="selection-summary" class="selection-summary"></p>
+    </div>
+    <div class="selection-toolbar">
+        <div class="selection-search">
+            <input type="text" id="selection-search-input" placeholder="Search videos...">
+        </div>
+        <div class="selection-controls">
+            <button type="button" class="btn btn--sm btn--ghost" onclick="selectAll()">Select all</button>
+            <button type="button" class="btn btn--sm btn--ghost" onclick="selectNone()">Select none</button>
+            <button type="button" class="btn btn--sm btn--ghost" onclick="selectLatest(10)">Latest 10</button>
+            <button type="button" class="btn btn--sm btn--ghost" onclick="selectLatest(25)">Latest 25</button>
+        </div>
+        <div class="selection-sort">
+            <select id="selection-sort" onchange="sortSelection()">
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+                <option value="shortest">Shortest</option>
+                <option value="longest">Longest</option>
+            </select>
+        </div>
+    </div>
+    <div id="selection-list" class="selection-list"></div>
+    <div class="selection-sticky" id="selection-sticky">
+        <div class="selection-sticky-info" id="selection-sticky-info">0 selected</div>
+        <button type="button" class="btn btn--primary" id="extract-selected-btn" onclick="extractSelected()">
+            Extract selected
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const urlInput = document.getElementById('url-input');
+const urlTypeIndicator = document.getElementById('url-type-indicator');
+const videoScopeGroup = document.getElementById('video-scope-group');
+const latestCountInput = document.getElementById('latest-count');
+let detectTimeout = null;
+let discoveredVideos = [];
+let discoveredDurations = {};
+
+// URL type detection
+urlInput.addEventListener('input', function() {
+    clearTimeout(detectTimeout);
+    const url = this.value.trim();
+    if (!url) {
+        urlTypeIndicator.style.display = 'none';
+        videoScopeGroup.style.display = 'none';
+        return;
+    }
+    detectTimeout = setTimeout(async () => {
+        try {
+            const resp = await fetch('/api/detect-url?url=' + encodeURIComponent(url));
+            const data = await resp.json();
+            if (data.type) {
+                const labels = {video: 'Video', playlist: 'Playlist', channel: 'Channel'};
+                urlTypeIndicator.textContent = labels[data.type] || data.type;
+                urlTypeIndicator.style.display = 'block';
+                videoScopeGroup.style.display = (data.type === 'playlist' || data.type === 'channel') ? '' : 'none';
+            } else {
+                urlTypeIndicator.style.display = 'none';
+                videoScopeGroup.style.display = 'none';
+            }
+        } catch (e) {
+            urlTypeIndicator.style.display = 'none';
+            videoScopeGroup.style.display = 'none';
+        }
+    }, 300);
+});
+
+// Show/hide latest count input
+document.querySelectorAll('input[name="video_scope"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        latestCountInput.style.display = this.value === 'latest' ? '' : 'none';
+    });
+});
+
+function copyInstallCmd() {
+    const cmd = document.getElementById('install-cmd');
+    navigator.clipboard.writeText(cmd.textContent).then(() => {
+        const btn = document.querySelector('.copy-install-btn');
+        btn.textContent = 'Copied';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+    });
+}
+
+function formatDurationHuman(totalSeconds) {
+    if (!totalSeconds || totalSeconds <= 0) return '';
+    const total = Math.floor(totalSeconds);
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const seconds = total % 60;
+    if (hours > 0) return hours + 'h ' + String(minutes).padStart(2, '0') + 'm';
+    if (minutes > 0) return minutes + 'm ' + String(seconds).padStart(2, '0') + 's';
+    return seconds + 's';
+}
+
+function formatDurationShort(seconds) {
+    if (!seconds || seconds <= 0) return '';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    if (h > 0) return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    return m + ':' + String(s).padStart(2, '0');
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '';
+    try {
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric'});
+    } catch { return ''; }
+}
+
+function updateSelectionDuration() {
+    const checkboxes = document.querySelectorAll('.video-select-cb:checked');
+    const selectedCount = checkboxes.length;
+    let knownDuration = 0;
+    let unknownCount = 0;
+    checkboxes.forEach(cb => {
+        const dur = parseFloat(cb.dataset.duration);
+        if (dur > 0) knownDuration += dur;
+        else unknownCount++;
+    });
+    const el = document.getElementById('selection-sticky-info');
+    let text = '<strong>' + selectedCount + '</strong> selected';
+    if (knownDuration > 0) text += ' &middot; ' + formatDurationHuman(knownDuration);
+    el.innerHTML = text;
+
+    const btn = document.getElementById('extract-selected-btn');
+    btn.textContent = selectedCount > 0 ? 'Extract ' + selectedCount + ' videos' : 'Extract selected';
+    btn.disabled = selectedCount === 0;
+}
+
+function selectAll() {
+    document.querySelectorAll('.video-select-cb').forEach(cb => { cb.checked = true; });
+    updateSelectionDuration();
+}
+
+function selectNone() {
+    document.querySelectorAll('.video-select-cb').forEach(cb => { cb.checked = false; });
+    updateSelectionDuration();
+}
+
+function selectLatest(n) {
+    const items = document.querySelectorAll('.selection-item');
+    items.forEach((item, i) => {
+        const cb = item.querySelector('.video-select-cb');
+        if (cb) cb.checked = i < n;
+    });
+    updateSelectionDuration();
+}
+
+function sortSelection() {
+    const sortVal = document.getElementById('selection-sort').value;
+    const list = document.getElementById('selection-list');
+    const items = Array.from(list.querySelectorAll('.selection-item'));
+    items.sort((a, b) => {
+        const da = parseFloat(a.querySelector('.video-select-cb').dataset.duration) || 0;
+        const db = parseFloat(b.querySelector('.video-select-cb').dataset.duration) || 0;
+        const pa = a.querySelector('.video-select-cb').dataset.published || '';
+        const pb = b.querySelector('.video-select-cb').dataset.published || '';
+        switch (sortVal) {
+            case 'newest': return pb.localeCompare(pa);
+            case 'oldest': return pa.localeCompare(pb);
+            case 'shortest': return da - db;
+            case 'longest': return db - da;
+            default: return 0;
+        }
+    });
+    items.forEach(item => list.appendChild(item));
+}
+
+// Search filter
+document.getElementById('selection-search-input').addEventListener('input', function() {
+    const q = this.value.trim().toLowerCase();
+    document.querySelectorAll('.selection-item').forEach(item => {
+        const title = item.querySelector('.selection-item-title').textContent.toLowerCase();
+        item.style.display = (!q || title.includes(q)) ? '' : 'none';
+    });
+});
+
+function cancelSelection() {
+    document.getElementById('selection-screen').style.display = 'none';
+    document.querySelector('.form-surface').style.display = '';
+    document.querySelector('.how-it-works').style.display = '';
+}
+
+async function extractSelected() {
+    const selectedIds = [];
+    document.querySelectorAll('.video-select-cb:checked').forEach(cb => {
+        if (cb.closest('.selection-item').style.display !== 'none') {
+            selectedIds.push(cb.value);
+        }
+    });
+    if (selectedIds.length === 0) { alert('Please select at least one video.'); return; }
+
+    const btn = document.getElementById('extract-selected-btn');
+    btn.disabled = true;
+    btn.textContent = 'Starting...';
+
+    const body = buildRequestBody();
+    body.selected_video_ids = selectedIds;
+
+    try {
+        const resp = await fetch('/jobs', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+        const data = await resp.json();
+        if (!resp.ok) { alert(data.detail || data.error || 'Failed to start job'); btn.disabled = false; btn.textContent = 'Extract selected'; return; }
+        window.location.href = '/jobs/' + data.job_id;
+    } catch (err) { alert('Network error: ' + err.message); btn.disabled = false; btn.textContent = 'Extract selected'; }
+}
+
+function buildRequestBody() {
+    const language = document.getElementById('language').value || null;
+    const after = document.getElementById('after').value || null;
+    const before = document.getElementById('before').value || null;
+    const outputDir = document.getElementById('output_dir').value.trim() || './output';
+    const model = document.getElementById('model').value || null;
+    const transcribeMissing = document.getElementById('transcribe_missing').checked;
+    const combineJsonl = document.getElementById('combine_jsonl').checked;
+    const includeTimestamps = document.getElementById('include_timestamps').checked;
+    const outputLayout = document.getElementById('output_layout').value || 'flat';
+    const youtubeAuth = document.getElementById('youtube_auth').value || 'auto';
+    const formats = ['md'];
+    document.querySelectorAll('.format-group input:checked').forEach(cb => { formats.push(cb.value); });
+
+    const body = {
+        url: document.getElementById('url-input').value.trim(),
+        formats, output_dir: outputDir, language,
+        transcribe_missing: transcribeMissing,
+        combine_jsonl: combineJsonl,
+        skip_existing: true,
+        timestamps: includeTimestamps,
+        output_layout: outputLayout,
+        youtube_auth: youtubeAuth,
+    };
+    if (after) body.after = after;
+    if (before) body.before = before;
+    if (model) body.model = model;
+    return body;
+}
+
+// Form submission
+document.getElementById('extract-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const btn = document.getElementById('submit-btn');
+    const errorDiv = document.getElementById('form-error');
+    errorDiv.style.display = 'none';
+
+    const scope = document.querySelector('input[name="video_scope"]:checked');
+    const scopeValue = scope ? scope.value : 'all';
+    const isBatch = videoScopeGroup.style.display !== 'none';
+
+    // Manual selection flow
+    if (isBatch && scopeValue === 'manual') {
+        btn.disabled = true;
+        btn.textContent = 'Discovering...';
+        try {
+            const resp = await fetch('/api/discover?url=' + encodeURIComponent(urlInput.value.trim()));
+            const data = await resp.json();
+            if (!resp.ok) {
+                errorDiv.textContent = data.detail || 'Discovery failed';
+                errorDiv.style.display = 'block';
+                btn.disabled = false; btn.textContent = 'Extract';
+                return;
+            }
+            discoveredVideos = data.videos || [];
+            discoveredDurations = data.duration_summary || {};
+            showSelectionScreen();
+            btn.disabled = false; btn.textContent = 'Extract';
+            return;
+        } catch (err) {
+            errorDiv.textContent = 'Discovery failed: ' + err.message;
+            errorDiv.style.display = 'block';
+            btn.disabled = false; btn.textContent = 'Extract';
+            return;
+        }
+    }
+
+    // Normal flow
+    btn.disabled = true;
+    btn.textContent = 'Starting...';
+    const body = buildRequestBody();
+    if (isBatch && scopeValue === 'latest') {
+        const n = parseInt(latestCountInput.value);
+        if (n > 0) body.latest = n;
+    }
+
+    try {
+        const resp = await fetch('/jobs', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+        const data = await resp.json();
+        if (!resp.ok) {
+            errorDiv.textContent = data.detail || data.error || 'Failed to start job';
+            errorDiv.style.display = 'block';
+            btn.disabled = false; btn.textContent = 'Extract';
+            return;
+        }
+        window.location.href = '/jobs/' + data.job_id;
+    } catch (err) {
+        errorDiv.textContent = 'Network error: ' + err.message;
+        errorDiv.style.display = 'block';
+        btn.disabled = false; btn.textContent = 'Extract';
+    }
+});
+
+function showSelectionScreen() {
+    document.querySelector('.form-surface').style.display = 'none';
+    document.querySelector('.how-it-works').style.display = 'none';
+    document.getElementById('selection-screen').style.display = '';
+
+    document.getElementById('selection-title').textContent = 'Select videos (' + discoveredVideos.length + ' found)';
+
+    let summary = discoveredVideos.length + ' videos';
+    if (discoveredDurations.total_seconds > 0) {
+        summary += ' &middot; Total: ' + formatDurationHuman(discoveredDurations.total_seconds);
+        summary += ' &middot; Avg: ' + formatDurationHuman(discoveredDurations.average_seconds);
+    }
+    document.getElementById('selection-summary').innerHTML = summary;
+
+    const listEl = document.getElementById('selection-list');
+    listEl.innerHTML = '';
+    discoveredVideos.forEach((v, i) => {
+        const item = document.createElement('label');
+        item.className = 'selection-item';
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.className = 'video-select-cb';
+        cb.value = v.id;
+        cb.checked = false; // Default: 0 selected
+        cb.dataset.duration = v.duration_seconds || 0;
+        cb.dataset.published = v.published_at || '';
+        cb.addEventListener('change', updateSelectionDuration);
+
+        const info = document.createElement('div');
+        info.className = 'selection-item-info';
+
+        const title = document.createElement('div');
+        title.className = 'selection-item-title';
+        title.textContent = v.title;
+
+        const meta = document.createElement('div');
+        meta.className = 'selection-item-meta';
+        const parts = [];
+        if (v.duration_seconds > 0) parts.push(formatDurationShort(v.duration_seconds));
+        if (v.published_at) parts.push(formatDate(v.published_at));
+        meta.textContent = parts.join(' \u00b7 ');
+
+        info.appendChild(title);
+        info.appendChild(meta);
+        item.appendChild(cb);
+        if (v.thumbnail_url) {
+            const thumb = document.createElement('img');
+            thumb.className = 'selection-item-thumb';
+            thumb.src = v.thumbnail_url;
+            thumb.loading = 'lazy';
+            thumb.alt = '';
+            item.appendChild(thumb);
+        }
+        item.appendChild(info);
+        listEl.appendChild(item);
+    });
+
+    updateSelectionDuration();
+}
+
+// More settings toggle (open by default)
+document.getElementById('more-settings-toggle').addEventListener('click', function() {
+    const content = document.getElementById('more-settings-content');
+    const isClosed = content.classList.toggle('is-closed');
+    this.setAttribute('aria-expanded', !isClosed);
+    this.querySelector('.chevron').innerHTML = isClosed ? '&#9654;' : '&#9660;';
+});
+
+// Advanced export formats toggle (closed by default)
+document.getElementById('advanced-formats-toggle').addEventListener('click', function() {
+    const content = document.getElementById('advanced-formats-content');
+    const isClosed = content.classList.toggle('is-closed');
+    this.setAttribute('aria-expanded', !isClosed);
+    this.querySelector('.chevron').innerHTML = isClosed ? '&#9654;' : '&#9660;';
+});
+
+// Load detected browsers for YouTube access
+async function loadBrowsers() {
+    try {
+        const resp = await fetch('/api/browsers');
+        const data = await resp.json();
+        const select = document.getElementById('youtube_auth');
+        const help = document.getElementById('youtube-auth-help');
+
+        if (data.browsers && data.browsers.length > 0) {
+            data.browsers.forEach(browser => {
+                const opt = document.createElement('option');
+                opt.value = browser.id;
+                opt.textContent = browser.name + ' session';
+                select.appendChild(opt);
+            });
+            help.textContent = 'Automatic (Recommended): YTX first tries YouTube without browser authentication. ' +
+                'Select a browser to use your signed-in session when YouTube requires sign-in. ' +
+                'YTX does not store or export browser cookies.';
+        } else {
+            help.textContent = 'No supported browser sessions detected. ' +
+                'Automatic mode will try unauthenticated access first.';
+        }
+    } catch (e) {
+        // Silently fail - dropdown will just show Automatic
+    }
+}
+loadBrowsers();
+</script>
+{% endblock %}

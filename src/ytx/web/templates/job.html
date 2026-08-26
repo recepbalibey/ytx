@@ -1,0 +1,946 @@
+{% extends "base.html" %}
+{% block title %}YTX{% endblock %}
+
+{% block content %}
+<div class="job-page">
+    <div class="job-header">
+        <h1 id="job-title">
+            {% if job.status.value == 'discovering' %}
+                Discovering videos...
+            {% elif job.status.value == 'processing' %}
+                Processing transcripts
+            {% elif job.status.value == 'complete' %}
+                Complete
+            {% elif job.status.value == 'failed' %}
+                Failed
+            {% elif job.status.value == 'cancelled' %}
+                Cancelled
+            {% elif job.status.value == 'cancelling' %}
+                Stopping...
+            {% elif job.status.value == 'paused' %}
+                Paused
+            {% else %}
+                {{ job.status.value | title }}
+            {% endif %}
+        </h1>
+        <p class="job-source-url">{{ job.source_url }}</p>
+    </div>
+
+    <!-- Batch progress (for playlists/channels) -->
+    <div id="batch-progress" class="batch-progress" style="display:none;">
+        <div class="batch-progress-label" id="batch-progress-label">Overall progress</div>
+        <div class="batch-progress-bar">
+            <div id="batch-progress-fill" class="batch-progress-fill"></div>
+        </div>
+        <div class="batch-stats">
+            <span id="count-discovered" class="batch-stat">
+                <strong>{{ job.total_videos }}</strong> videos
+            </span>
+            <span id="count-completed" class="batch-stat batch-stat--complete">
+                <strong>{{ job.completed_videos }}</strong> complete
+            </span>
+            <span id="count-skipped" class="batch-stat batch-stat--skipped">
+                <strong>{{ job.skipped_videos }}</strong> skipped
+            </span>
+            <span id="count-failed" class="batch-stat batch-stat--failed">
+                <strong>{{ job.failed_videos }}</strong> failed
+            </span>
+        </div>
+    </div>
+
+    <!-- Current task (what's happening right now) -->
+    <div id="current-task" class="current-task">
+        <div class="current-task-label">Current</div>
+        <div class="current-task-title" id="current-task-title"></div>
+        <div class="current-task-phase" id="current-task-phase">
+            <span class="spinner"></span>
+            <span id="current-task-phase-text"></span>
+        </div>
+    </div>
+
+    <!-- Processing timeline (single video) -->
+    <div id="processing-timeline" class="processing-timeline" style="display:none;">
+        <ul class="timeline-steps" id="timeline-steps">
+            <li class="timeline-step" id="step-check-captions">
+                <span class="step-icon step-icon--waiting" id="icon-check-captions">○</span>
+                <div>
+                    <div class="step-label">Checking YouTube captions</div>
+                    <div class="step-detail" id="detail-check-captions"></div>
+                </div>
+            </li>
+            <li class="timeline-step" id="step-download-audio" style="display:none;">
+                <span class="step-icon step-icon--waiting" id="icon-download-audio">○</span>
+                <div>
+                    <div class="step-label">Downloading audio</div>
+                    <div class="step-detail" id="detail-download-audio"></div>
+                </div>
+            </li>
+            <li class="timeline-step" id="step-transcribe" style="display:none;">
+                <span class="step-icon step-icon--waiting" id="icon-transcribe">○</span>
+                <div>
+                    <div class="step-label">Transcribing locally</div>
+                    <div class="step-detail" id="detail-transcribe"></div>
+                </div>
+            </li>
+            <li class="timeline-step" id="step-write">
+                <span class="step-icon step-icon--waiting" id="icon-write">○</span>
+                <div>
+                    <div class="step-label">Writing transcript</div>
+                    <div class="step-detail" id="detail-write"></div>
+                </div>
+            </li>
+        </ul>
+    </div>
+
+    <!-- Errors -->
+    <div id="job-errors" class="job-errors" style="display:none;">
+        <h3>Errors</h3>
+        <ul id="error-list"></ul>
+    </div>
+
+    <!-- Warnings -->
+    <div id="job-warnings" class="job-warnings" style="display:none;">
+        <h3>Warnings</h3>
+        <ul id="warning-list"></ul>
+    </div>
+
+    <!-- Video list (batch) -->
+    <div id="video-list" class="video-list" style="display:none;">
+        <div class="video-list-header" id="video-list-header">Videos</div>
+        <div id="video-rows"></div>
+    </div>
+
+    <!-- Results (shown on completion) -->
+    <div id="job-results" style="display:none;">
+        <div class="result-hero">
+            <div class="result-icon result-icon--success" id="result-icon">&#10003;</div>
+            <h1 id="result-title">Transcripts ready</h1>
+            <p class="result-subtitle" id="result-subtitle"></p>
+        </div>
+
+        <div class="result-meta" id="result-meta"></div>
+
+        <!-- Combined download (primary action for batch) -->
+        <div id="result-combined-downloads" style="display:none;">
+            <div class="downloads-section">
+                <div class="download-cards" id="combined-download-cards"></div>
+            </div>
+        </div>
+
+        <!-- Processing metrics (single video) -->
+        <div id="result-metrics" class="result-metrics" style="display:none;">
+            <h2>Processing details</h2>
+            <dl class="metrics-list" id="metrics-list"></dl>
+        </div>
+
+        <!-- Batch summary (playlist/channel) -->
+        <div id="batch-summary" class="batch-summary" style="display:none;">
+            <dl class="metrics-list" id="batch-summary-list"></dl>
+        </div>
+
+        <!-- Duration summary (shown after discovery) -->
+        <div id="duration-summary" class="duration-summary" style="display:none;">
+            <h2>Content overview</h2>
+            <dl class="metrics-list" id="duration-summary-list"></dl>
+        </div>
+
+        <div id="result-downloads" style="display:none;">
+            <div class="downloads-section">
+                <h2>Individual transcripts</h2>
+                <div class="download-cards" id="download-cards"></div>
+            </div>
+        </div>
+
+        <div id="result-video-list" style="display:none;">
+            <div class="video-list">
+                <div class="video-list-header">Individual transcripts</div>
+                <div id="result-video-rows"></div>
+            </div>
+        </div>
+
+        <div class="saved-location" id="saved-location" style="display:none;">
+            Saved locally: <code id="saved-path"></code>
+        </div>
+    </div>
+
+    <!-- Error state (shown on failure) -->
+    <div id="error-state" style="display:none;">
+        <div class="error-state">
+            <div class="error-icon">✕</div>
+            <h2 id="error-state-title">Transcript could not be created</h2>
+            <p id="error-state-message"></p>
+            <div class="error-hint" id="error-state-hint" style="display:none;"></div>
+            <a href="/" class="btn btn--primary">New extraction</a>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div id="job-actions" class="btn-group" style="margin-top: 1.5rem;">
+        {% if job.status.value in ('queued', 'discovering', 'processing', 'cancelling') %}
+        <button id="cancel-btn" class="btn btn--danger" onclick="cancelJob()">Cancel</button>
+        {% endif %}
+        <a href="/" class="btn btn--ghost">New extraction</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const JOB_ID = "{{ job.id }}";
+const INITIAL_STATUS = "{{ job.status.value }}";
+const IS_SINGLE_VIDEO = {{ 'true' if job.total_videos == 1 or job.total_videos == 0 else 'false' }};
+let eventSource = null;
+let completedCount = {{ job.completed_videos }};
+let skippedCount = {{ job.skipped_videos }};
+let failedCount = {{ job.failed_videos }};
+let totalCount = {{ job.total_videos }};
+let transcriptionStartTime = null;
+let transcriptionTimerInterval = null;
+let currentTranscriptionModel = null;
+let currentTranscriptionLanguage = null;
+
+function updateBatchProgress() {
+    const total = totalCount || 1;
+    const done = completedCount + skippedCount + failedCount;
+    const pct = Math.round((done / total) * 100);
+    document.getElementById('batch-progress-fill').style.width = pct + '%';
+    document.getElementById('count-completed').innerHTML = '<strong>' + completedCount + '</strong> complete';
+    document.getElementById('count-skipped').innerHTML = '<strong>' + skippedCount + '</strong> skipped';
+    document.getElementById('count-failed').innerHTML = '<strong>' + failedCount + '</strong> failed';
+}
+
+function formatElapsed(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+}
+
+function startTranscriptionTimer(model, language) {
+    transcriptionStartTime = Date.now();
+    currentTranscriptionModel = model || null;
+    currentTranscriptionLanguage = language || null;
+
+    const detailEl = document.getElementById('detail-transcribe');
+    if (detailEl) {
+        let info = 'Elapsed: 00:00';
+        if (model) {
+            info += ' | Model: ' + model.charAt(0).toUpperCase() + model.slice(1);
+        }
+        if (language) {
+            info += ' | Language: ' + language;
+        }
+        detailEl.textContent = info;
+    }
+
+    if (transcriptionTimerInterval) clearInterval(transcriptionTimerInterval);
+    transcriptionTimerInterval = setInterval(() => {
+        if (!transcriptionStartTime) return;
+        const elapsed = (Date.now() - transcriptionStartTime) / 1000;
+        const detailEl = document.getElementById('detail-transcribe');
+        if (detailEl) {
+            let info = 'Elapsed: ' + formatElapsed(elapsed);
+            if (currentTranscriptionModel) {
+                info += ' | Model: ' + currentTranscriptionModel.charAt(0).toUpperCase() + currentTranscriptionModel.slice(1);
+            }
+            if (currentTranscriptionLanguage) {
+                info += ' | Language: ' + currentTranscriptionLanguage;
+            }
+            detailEl.textContent = info;
+        }
+    }, 1000);
+}
+
+function stopTranscriptionTimer() {
+    if (transcriptionTimerInterval) {
+        clearInterval(transcriptionTimerInterval);
+        transcriptionTimerInterval = null;
+    }
+    transcriptionStartTime = null;
+}
+
+function showCurrentTask(title, phase) {
+    const el = document.getElementById('current-task');
+    el.classList.add('is-active');
+    document.getElementById('current-task-title').textContent = title || '';
+    document.getElementById('current-task-phase-text').textContent = phase || '';
+}
+
+function hideCurrentTask() {
+    document.getElementById('current-task').classList.remove('is-active');
+}
+
+function setTimelineStep(stepId, state, detail) {
+    const step = document.getElementById('step-' + stepId);
+    if (!step) return;
+    step.style.display = '';
+
+    const icon = document.getElementById('icon-' + stepId);
+    if (icon) {
+        icon.className = 'step-icon';
+        if (state === 'done') {
+            icon.className += ' step-icon--done';
+            icon.textContent = '✓';
+        } else if (state === 'active') {
+            icon.className += ' step-icon--active';
+            icon.textContent = '●';
+        } else if (state === 'error') {
+            icon.className += ' step-icon--error';
+            icon.textContent = '!';
+        } else {
+            icon.className += ' step-icon--waiting';
+            icon.textContent = '○';
+        }
+    }
+
+    if (detail !== undefined) {
+        const detailEl = document.getElementById('detail-' + stepId);
+        if (detailEl) detailEl.textContent = detail || '';
+    }
+
+    if (state === 'done') {
+        step.classList.add('timeline-step--done');
+    } else {
+        step.classList.remove('timeline-step--done');
+    }
+}
+
+function addVideoRow(videoId, title, status, source, error) {
+    const container = document.getElementById('video-rows');
+    let row = document.getElementById('video-' + videoId);
+    if (!row) {
+        row = document.createElement('div');
+        row.className = 'video-row';
+        row.id = 'video-' + videoId;
+        container.appendChild(row);
+    }
+
+    let iconClass = 'vr-icon--waiting';
+    let iconChar = '○';
+    if (status === 'complete') { iconClass = 'vr-icon--done'; iconChar = '✓'; }
+    else if (status === 'failed') { iconClass = 'vr-icon--failed'; iconChar = '!'; }
+    else if (status === 'skipped') { iconClass = 'vr-icon--skipped'; iconChar = '–'; }
+    else if (status === 'processing' || status === 'transcribing' || status === 'downloading_audio') { iconClass = 'vr-icon--active'; iconChar = '●'; }
+
+    let metaHtml = '';
+    if (source) metaHtml += '<span class="vr-source">' + source.replace(/_/g, ' ') + '</span>';
+    if (error) metaHtml += '<span class="vr-error">' + error + '</span>';
+
+    let actionsHtml = '';
+    if (status === 'complete') {
+        actionsHtml = '<a href="/jobs/' + JOB_ID + '/videos/' + videoId + '" class="btn btn--sm btn--ghost">View</a>';
+    }
+
+    row.innerHTML =
+        '<span class="vr-icon ' + iconClass + '">' + iconChar + '</span>' +
+        '<div class="vr-body">' +
+            '<div class="vr-title">' + escapeHtml(title) + '</div>' +
+            '<div class="vr-meta">' + metaHtml + '</div>' +
+        '</div>' +
+        '<div class="vr-actions">' + actionsHtml + '</div>';
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showError(msg) {
+    const container = document.getElementById('job-errors');
+    container.style.display = 'block';
+    const list = document.getElementById('error-list');
+    const li = document.createElement('li');
+    li.textContent = msg;
+    list.appendChild(li);
+}
+
+function showWarning(msg) {
+    const container = document.getElementById('job-warnings');
+    container.style.display = 'block';
+    const list = document.getElementById('warning-list');
+    const li = document.createElement('li');
+    li.textContent = msg;
+    list.appendChild(li);
+}
+
+function formatDuration(seconds) {
+    if (!seconds || seconds <= 0) return '';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    if (h > 0) return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    return m + ':' + String(s).padStart(2, '0');
+}
+
+function pluralize(count, singular, plural) {
+    if (!plural) plural = singular + 's';
+    return count + ' ' + (count === 1 ? singular : plural);
+}
+
+function showMetrics(metrics) {
+    if (!metrics) return;
+    const container = document.getElementById('result-metrics');
+    const list = document.getElementById('metrics-list');
+    container.style.display = 'block';
+    let html = '';
+
+    if (metrics.video_duration_seconds) {
+        html += '<dt>Video duration</dt><dd>' + formatDuration(metrics.video_duration_seconds) + '</dd>';
+    }
+    if (metrics.transcription_elapsed_seconds) {
+        html += '<dt>Transcription time</dt><dd>' + formatDuration(metrics.transcription_elapsed_seconds) + '</dd>';
+    }
+    if (metrics.processing_elapsed_seconds) {
+        html += '<dt>Overall processing</dt><dd>' + formatDuration(metrics.processing_elapsed_seconds) + '</dd>';
+    }
+    if (metrics.transcription_speed_x) {
+        html += '<dt>Speed</dt><dd>' + metrics.transcription_speed_x.toFixed(1) + 'x realtime</dd>';
+    }
+    if (metrics.segment_count) {
+        html += '<dt>Segments</dt><dd>' + metrics.segment_count + '</dd>';
+    }
+    if (metrics.transcription_model) {
+        html += '<dt>Model</dt><dd>' + metrics.transcription_model.charAt(0).toUpperCase() + metrics.transcription_model.slice(1) + '</dd>';
+    }
+    if (metrics.transcription_language) {
+        html += '<dt>Language</dt><dd>' + metrics.transcription_language + '</dd>';
+    }
+    list.innerHTML = html;
+}
+
+function showBatchSummary(data) {
+    const container = document.getElementById('batch-summary');
+    const list = document.getElementById('batch-summary-list');
+    container.style.display = 'block';
+
+    const lm = data.local_metrics || {};
+    let html = '';
+
+    const completed = data.completed_videos || 0;
+    const skipped = data.skipped_videos || 0;
+    const failed = data.failed_videos || 0;
+    const total = data.total_videos || 0;
+    const waiting = total - completed - skipped - failed;
+
+    html += '<dt>Completed</dt><dd>' + pluralize(completed, 'transcript') + '</dd>';
+    if (skipped > 0) html += '<dt>Skipped</dt><dd>' + pluralize(skipped, 'video') + '</dd>';
+    if (waiting > 0) html += '<dt>Waiting</dt><dd>' + pluralize(waiting, 'video') + '</dd>';
+    if (failed > 0) html += '<dt>Failed</dt><dd>' + pluralize(failed, 'video') + '</dd>';
+
+    if (lm.total_content_seconds > 0) {
+        html += '<dt>Total content processed</dt><dd>' + formatDuration(lm.total_content_seconds) + '</dd>';
+    }
+    if (lm.total_transcription_seconds > 0) {
+        html += '<dt>Local transcription time</dt><dd>' + formatDuration(lm.total_transcription_seconds) + '</dd>';
+    }
+    if (lm.aggregate_speed_x) {
+        html += '<dt>Average local speed</dt><dd>' + lm.aggregate_speed_x.toFixed(1) + 'x realtime</dd>';
+    }
+
+    list.innerHTML = html;
+}
+
+function showDurationSummary(data) {
+    const ds = data.duration_summary;
+    if (!ds || ds.known_count === 0) return;
+    window._durationSummary = ds;
+}
+
+function formatDurationHuman(totalSeconds) {
+    if (!totalSeconds || totalSeconds <= 0) return '';
+    const total = Math.floor(totalSeconds);
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const seconds = total % 60;
+    if (hours > 0) return hours + 'h ' + String(minutes).padStart(2, '0') + 'm';
+    if (minutes > 0) return minutes + 'm ' + String(seconds).padStart(2, '0') + 's';
+    return seconds + 's';
+}
+
+function showResults(summary) {
+    document.getElementById('job-results').style.display = 'block';
+
+    // Use ACTUAL completed count, not total_discovered
+    const completed = completedCount;
+    const captions = summary.captions_extracted || 0;
+    const local = summary.locally_transcribed || 0;
+    const failed = failedCount;
+    const skipped = skippedCount;
+    const waiting = totalCount - completed - skipped - failed;
+
+    if (totalCount > 1) {
+        if (completed > 0) {
+            document.getElementById('result-title').textContent = pluralize(completed, 'transcript') + ' ready';
+        } else {
+            document.getElementById('result-title').textContent = 'No transcripts completed';
+        }
+    } else {
+        document.getElementById('result-title').textContent = 'Transcript ready';
+    }
+
+    // Build subtitle with detailed counts for batch
+    let subtitleParts = [];
+    if (totalCount > 1) {
+        subtitleParts.push('Channel contains: ' + pluralize(totalCount, 'video'));
+        if (completed > 0) subtitleParts.push('Completed: ' + completed);
+        if (waiting > 0) subtitleParts.push('Waiting: ' + waiting);
+        if (failed > 0) subtitleParts.push('Failed: ' + failed);
+        if (skipped > 0) subtitleParts.push('Skipped: ' + skipped);
+    }
+    const ds = window._durationSummary;
+    if (ds && ds.total_seconds > 0) subtitleParts.push(formatDurationHuman(ds.total_seconds) + ' content');
+    document.getElementById('result-subtitle').textContent = subtitleParts.join(' \u00b7 ');
+
+    // Meta stats
+    const metaEl = document.getElementById('result-meta');
+    let metaHtml = '';
+    if (captions > 0) metaHtml += '<span class="result-meta-item"><strong>' + captions + '</strong> YouTube captions</span>';
+    if (local > 0) metaHtml += '<span class="result-meta-item"><strong>' + local + '</strong> local transcriptions</span>';
+    if (failed > 0) metaHtml += '<span class="result-meta-item"><strong>' + failed + '</strong> failed</span>';
+    metaEl.innerHTML = metaHtml;
+}
+
+function showDownloadCards(videos) {
+    if (!videos || videos.length === 0) return;
+
+    // For single video, show its downloads
+    if (videos.length === 1) {
+        const v = videos[0];
+        if (v.output_paths && v.output_paths.length > 0) {
+            document.getElementById('result-downloads').style.display = 'block';
+            const cards = document.getElementById('download-cards');
+
+            // Primary: Download transcript (md)
+            const mdPath = v.output_paths.find(p => p.endsWith('transcript.md'));
+            if (mdPath) {
+                const fname = mdPath.split('/').pop();
+                const a = document.createElement('a');
+                a.href = '/jobs/' + JOB_ID + '/files/' + v.id + '/' + fname;
+                a.className = 'download-card download-card--primary';
+                a.innerHTML = '<span class="dl-icon">↓</span> Download transcript';
+                cards.appendChild(a);
+            }
+
+            // Secondary: other formats
+            v.output_paths.forEach(function(path) {
+                const fname = path.split('/').pop();
+                if (fname === 'transcript.md') return; // already shown as primary
+                const ext = fname.replace('transcript.', '').toUpperCase();
+                const a = document.createElement('a');
+                a.href = '/jobs/' + JOB_ID + '/files/' + v.id + '/' + fname;
+                a.className = 'download-card';
+                a.innerHTML = '<span class="dl-icon">↓</span> ' + ext;
+                cards.appendChild(a);
+            });
+        }
+    } else {
+        // Batch: show video list with individual downloads
+        document.getElementById('result-video-list').style.display = 'block';
+        const container = document.getElementById('result-video-rows');
+        videos.forEach(function(v) {
+            const row = document.createElement('div');
+            row.className = 'video-row';
+
+            let iconClass = 'vr-icon--done';
+            let iconChar = '✓';
+            if (v.status === 'failed') { iconClass = 'vr-icon--failed'; iconChar = '!'; }
+            else if (v.status === 'skipped') { iconClass = 'vr-icon--skipped'; iconChar = '–'; }
+
+            let metaHtml = '';
+            if (v.source) metaHtml += '<span class="vr-source">' + v.source.replace(/_/g, ' ') + '</span>';
+
+            let actionsHtml = '';
+            if (v.status === 'complete') {
+                actionsHtml = '<a href="/jobs/' + JOB_ID + '/videos/' + v.id + '" class="btn btn--sm btn--ghost">View</a>';
+                // Find md path for download
+                const mdPath = (v.output_paths || []).find(p => p.endsWith('transcript.md'));
+                if (mdPath) {
+                    const fname = mdPath.split('/').pop();
+                    actionsHtml += '<a href="/jobs/' + JOB_ID + '/files/' + v.id + '/' + fname + '" class="btn btn--sm btn--ghost">Download</a>';
+                }
+            }
+
+            row.innerHTML =
+                '<span class="vr-icon ' + iconClass + '">' + iconChar + '</span>' +
+                '<div class="vr-body">' +
+                    '<div class="vr-title">' + escapeHtml(v.title || v.id) + '</div>' +
+                    '<div class="vr-meta">' + metaHtml + '</div>' +
+                '</div>' +
+                '<div class="vr-actions">' + actionsHtml + '</div>';
+            container.appendChild(row);
+        });
+    }
+}
+
+function showCombinedDownloads() {
+    fetch('/jobs/' + JOB_ID + '/status')
+        .then(r => r.json())
+        .then(data => {
+            if (data.output_directory) {
+                document.getElementById('saved-location').style.display = 'block';
+                // Show the actual output directory
+                document.getElementById('saved-path').textContent = data.output_directory;
+            }
+
+            // Show combined downloads for batch jobs
+            if (data.combined_files && data.combined_files.length > 0) {
+                const container = document.getElementById('combined-download-cards');
+                container.innerHTML = '';
+
+                // Primary: output.md (flat) or combined.md (structured)
+                if (data.combined_files.includes('output.md')) {
+                    const a = document.createElement('a');
+                    a.href = '/jobs/' + JOB_ID + '/combined/output.md';
+                    a.className = 'download-card download-card--primary';
+                    a.innerHTML = '<span class="dl-icon">↓</span> Download combined transcript';
+                    container.appendChild(a);
+                } else if (data.combined_files.includes('combined.md')) {
+                    const a = document.createElement('a');
+                    a.href = '/jobs/' + JOB_ID + '/combined/combined.md';
+                    a.className = 'download-card download-card--primary';
+                    a.innerHTML = '<span class="dl-icon">↓</span> Download combined transcript';
+                    container.appendChild(a);
+                }
+
+                // Secondary: combined.jsonl
+                if (data.combined_files.includes('combined.jsonl')) {
+                    const a = document.createElement('a');
+                    a.href = '/jobs/' + JOB_ID + '/combined/combined.jsonl';
+                    a.className = 'download-card';
+                    a.innerHTML = '<span class="dl-icon">↓</span> JSONL';
+                    container.appendChild(a);
+                }
+
+                document.getElementById('result-combined-downloads').style.display = 'block';
+            }
+        });
+}
+
+function finishJob(status) {
+    hideCurrentTask();
+    stopTranscriptionTimer();
+    document.getElementById('cancel-btn')?.remove();
+
+    const title = document.getElementById('job-title');
+    if (status === 'complete') {
+        title.textContent = 'Complete';
+    } else if (status === 'failed') {
+        title.textContent = 'Failed';
+    } else if (status === 'cancelled') {
+        title.textContent = 'Processing stopped';
+    } else if (status === 'paused') {
+        title.textContent = 'Paused';
+    }
+
+    // Update batch progress
+    if (totalCount > 1) {
+        document.getElementById('batch-progress-fill').style.width = '100%';
+        document.getElementById('batch-progress-fill').classList.add('batch-progress-fill--complete');
+    }
+
+    // Refresh job status to get final state
+    fetch('/jobs/' + JOB_ID + '/status')
+        .then(r => r.json())
+        .then(data => {
+            completedCount = data.completed_videos || 0;
+            skippedCount = data.skipped_videos || 0;
+            failedCount = data.failed_videos || 0;
+            totalCount = data.total_videos || 0;
+            updateBatchProgress();
+
+            if (status === 'complete' || (status === 'failed' && completedCount > 0) || (status === 'cancelled' && completedCount > 0) || (status === 'paused' && completedCount > 0)) {
+                showResults(data.summary || {
+                    total_discovered: totalCount,
+                    captions_extracted: 0,
+                    locally_transcribed: 0,
+                    failed: failedCount,
+                });
+                showDownloadCards(data.videos);
+                showCombinedDownloads();
+
+                // Show metrics for single video
+                if (data.videos && data.videos.length === 1 && data.videos[0].metrics) {
+                    showMetrics(data.videos[0].metrics);
+                }
+
+                // Show batch summary for playlists/channels
+                if (totalCount > 1) {
+                    showBatchSummary(data);
+                }
+
+                // Show cancellation message
+                if (status === 'cancelled') {
+                    const subtitle = document.getElementById('result-subtitle');
+                    subtitle.textContent = pluralize(completedCount, 'transcript') + ' safely saved. You can resume this playlist later.';
+                }
+            } else if (status === 'failed') {
+                document.getElementById('error-state').style.display = 'block';
+                const errorMsg = (data.errors && data.errors[0]) || 'An unexpected error occurred.';
+                document.getElementById('error-state-message').textContent = errorMsg;
+
+                if (errorMsg.includes('blocked') || errorMsg.includes('Caption retrieval')) {
+                    document.getElementById('error-state-hint').style.display = 'block';
+                    document.getElementById('error-state-hint').textContent =
+                        'Enable local transcription to create the transcript without using YouTube captions.';
+                }
+
+                // Show deduplicated error summary for batch jobs
+                if (data.error_counts && Object.keys(data.error_counts).length > 0) {
+                    const errorContainer = document.getElementById('job-errors');
+                    errorContainer.style.display = 'block';
+                    const errorList = document.getElementById('error-list');
+                    errorList.innerHTML = '';
+                    for (const [errMsg, count] of Object.entries(data.error_counts)) {
+                        const li = document.createElement('li');
+                        if (count > 1) {
+                            li.textContent = errMsg + ' (' + count + ' videos affected)';
+                        } else {
+                            li.textContent = errMsg;
+                        }
+                        errorList.appendChild(li);
+                    }
+                }
+            } else if (status === 'cancelled') {
+                // Cancelled with no completed videos
+                document.getElementById('error-state').style.display = 'block';
+                document.getElementById('error-state-title').textContent = 'Processing stopped';
+                document.getElementById('error-state-message').textContent =
+                    'No transcripts were completed. You can resume this playlist later.';
+            } else if (status === 'paused') {
+                // Paused due to auth/playback issue
+                document.getElementById('error-state').style.display = 'block';
+                document.getElementById('error-state-title').textContent = 'YouTube access issue';
+                const errorMsg = (data.errors && data.errors[0]) || 'YouTube playback session failed.';
+                document.getElementById('error-state-message').textContent = errorMsg;
+                document.getElementById('error-state-hint').style.display = 'block';
+                document.getElementById('error-state-hint').textContent =
+                    'Try Automatic mode first. Your completed transcripts are preserved.';
+                // Add retry button
+                const retryBtn = document.createElement('a');
+                retryBtn.href = '/?url=' + encodeURIComponent(data.source_url || '') + '&auth=auto';
+                retryBtn.className = 'btn btn--primary';
+                retryBtn.textContent = 'Retry with Automatic';
+                retryBtn.style.marginTop = '1rem';
+                document.getElementById('error-state').appendChild(retryBtn);
+            }
+        });
+}
+
+function connectSSE() {
+    eventSource = new EventSource('/jobs/' + JOB_ID + '/events');
+    eventSource.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+
+        if (data.type === 'stream_end') {
+            eventSource.close();
+            finishJob(data.status);
+            return;
+        }
+
+        switch (data.type) {
+            case 'discovery_started':
+                if (totalCount <= 1) {
+                    document.getElementById('processing-timeline').style.display = 'block';
+                    setTimelineStep('check-captions', 'active');
+                } else {
+                    showCurrentTask('', 'Discovering videos...');
+                }
+                document.getElementById('job-title').textContent = 'Discovering videos...';
+                break;
+
+            case 'discovery_complete':
+                hideCurrentTask();
+                totalCount = data.total || 0;
+                document.getElementById('count-discovered').innerHTML = '<strong>' + totalCount + '</strong> videos';
+
+                if (totalCount > 1) {
+                    document.getElementById('batch-progress').style.display = 'block';
+                    document.getElementById('video-list').style.display = 'block';
+                    document.getElementById('job-title').textContent = 'Processing transcripts';
+                } else {
+                    document.getElementById('job-title').textContent = 'Processing video';
+                }
+
+                // Show duration summary if available
+                if (data.duration_summary) {
+                    showDurationSummary({duration_summary: data.duration_summary});
+                }
+                break;
+
+            case 'video_started':
+                if (totalCount > 1) {
+                    addVideoRow(data.video_id, data.video_title, 'processing');
+                    showCurrentTask(data.video_title, 'Processing...');
+                } else {
+                    showCurrentTask(data.video_title, '');
+                }
+                updateBatchProgress();
+                break;
+
+            case 'captions_found':
+                if (totalCount > 1) {
+                    addVideoRow(data.video_id, data.video_title || '', 'processing', data.source);
+                } else {
+                    setTimelineStep('check-captions', 'done', 'Found: ' + (data.source || '').replace(/_/g, ' '));
+                    setTimelineStep('write', 'active');
+                }
+                break;
+
+            case 'captions_missing':
+                if (totalCount > 1) {
+                    addVideoRow(data.video_id, data.video_title || '', 'processing');
+                } else {
+                    const msg = data.message || 'No captions found';
+                    setTimelineStep('check-captions', 'done', msg);
+
+                    if (msg.includes('blocked') || msg.includes('Caption retrieval blocked')) {
+                        setTimelineStep('check-captions', 'error', 'Caption retrieval blocked');
+                    }
+                }
+                break;
+
+            case 'audio_download_started':
+                if (totalCount > 1) {
+                    addVideoRow(data.video_id, data.video_title || '', 'downloading_audio');
+                } else {
+                    setTimelineStep('download-audio', 'active');
+                    showCurrentTask(data.video_title || '', 'Downloading audio...');
+                }
+                break;
+
+            case 'transcription_started':
+                if (totalCount > 1) {
+                    addVideoRow(data.video_id, data.video_title || '', 'transcribing');
+                    showCurrentTask(data.video_title || '', 'Transcribing locally...');
+                } else {
+                    setTimelineStep('download-audio', 'done');
+                    setTimelineStep('transcribe', 'active');
+                    showCurrentTask(data.video_title || '', 'Transcribing locally...');
+                }
+                startTranscriptionTimer(data.model_size, data.language);
+                break;
+
+            case 'transcription_completed':
+                stopTranscriptionTimer();
+                if (totalCount > 1) {
+                    addVideoRow(data.video_id, data.video_title || '', 'processing');
+                } else {
+                    setTimelineStep('transcribe', 'done', data.message || '');
+                }
+                break;
+
+            case 'output_written':
+                if (totalCount <= 1) {
+                    setTimelineStep('write', 'done', data.message || '');
+                }
+                break;
+
+            case 'video_completed':
+                completedCount++;
+                if (totalCount > 1) {
+                    addVideoRow(data.video_id, data.video_title || '', 'complete', data.source);
+                    hideCurrentTask();
+                }
+                updateBatchProgress();
+                break;
+
+            case 'video_failed':
+                failedCount++;
+                if (totalCount > 1) {
+                    addVideoRow(data.video_id, data.video_title || '', 'failed', null, data.error);
+                    hideCurrentTask();
+                } else {
+                    setTimelineStep('check-captions', 'error', data.error);
+                }
+                updateBatchProgress();
+                if (data.error) showError(data.error);
+                break;
+
+            case 'video_skipped':
+                skippedCount++;
+                if (totalCount > 1) {
+                    addVideoRow(data.video_id, data.video_title || '', 'skipped');
+                }
+                updateBatchProgress();
+                break;
+
+            case 'job_completed':
+                eventSource.close();
+                finishJob('complete');
+                break;
+
+            case 'job_fatal_error':
+                // Fatal configuration error - show immediately
+                document.getElementById('error-state').style.display = 'block';
+                document.getElementById('error-state-title').textContent = 'Local transcription could not start';
+                let fatalMsg = data.error || 'Configuration error.';
+                // Clean up Python exception formatting
+                fatalMsg = fatalMsg.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+                document.getElementById('error-state-message').textContent = fatalMsg;
+                document.getElementById('error-state-hint').style.display = 'block';
+                document.getElementById('error-state-hint').textContent =
+                    'No videos were transcribed. Check your transcription quality setting and try again.';
+                break;
+
+            case 'job_warning':
+                if (data.message) showWarning(data.message);
+                break;
+
+            case 'job_failed':
+                eventSource.close();
+                finishJob('failed');
+                if (data.error) showError(data.error);
+                break;
+
+            case 'job_paused':
+                eventSource.close();
+                finishJob('paused');
+                if (data.error) showError(data.error);
+                break;
+
+            case 'job_cancelling':
+                // Cancellation requested, pipeline is finishing up
+                document.getElementById('cancel-btn')?.remove();
+                const cancelTitle = document.getElementById('job-title');
+                cancelTitle.textContent = 'Stopping...';
+                break;
+
+            case 'job_cancelled':
+                eventSource.close();
+                finishJob('cancelled');
+                break;
+        }
+    };
+
+    eventSource.onerror = function() {
+        setTimeout(connectSSE, 2000);
+    };
+}
+
+async function cancelJob() {
+    if (!confirm('Cancel this job?')) return;
+    try {
+        await fetch('/jobs/' + JOB_ID + '/cancel', {method: 'POST'});
+    } catch (e) {
+        // ignore
+    }
+}
+
+// Initialize based on current state
+if (['queued', 'discovering', 'processing', 'cancelling'].includes(INITIAL_STATUS)) {
+    if (totalCount > 1) {
+        document.getElementById('batch-progress').style.display = 'block';
+        document.getElementById('video-list').style.display = 'block';
+    }
+    connectSSE();
+} else if (INITIAL_STATUS === 'complete') {
+    finishJob('complete');
+} else if (INITIAL_STATUS === 'failed') {
+    finishJob('failed');
+} else if (INITIAL_STATUS === 'cancelled') {
+    finishJob('cancelled');
+} else if (INITIAL_STATUS === 'paused') {
+    finishJob('paused');
+}
+</script>
+{% endblock %}

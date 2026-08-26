@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}YTX{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/logo.svg">
+    <link rel="stylesheet" href="/static/app.css">
+    <script>
+    (function() {
+        var t = localStorage.getItem('ytx-theme');
+        if (t === 'dark' || t === 'light') {
+            document.documentElement.setAttribute('data-theme', t);
+        }
+    })();
+    </script>
+</head>
+<body>
+    <header class="site-header">
+        <div class="header-inner">
+            <a href="/" class="header-brand">
+                <img src="/static/logo.svg" alt="" class="header-logo" width="24" height="24">
+                <span class="logo-text">YTX</span>
+            </a>
+            <div class="header-actions">
+                <a href="/" class="btn btn--sm btn--ghost">New extraction</a>
+                <div style="position:relative;">
+                    <button class="appearance-btn" id="appearance-btn" aria-label="Change appearance" title="Appearance">
+                        <svg id="appearance-icon-system" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><circle cx="8" cy="8" r="6"/><path d="M8 2v12"/><path d="M8 2a6 6 0 0 1 0 12" fill="currentColor" opacity="0.3"/></svg>
+                        <svg id="appearance-icon-light" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/></svg>
+                        <svg id="appearance-icon-dark" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M14 8.5A6.5 6.5 0 0 1 7.5 2 6.5 6.5 0 1 0 14 8.5z"/></svg>
+                    </button>
+                    <div class="appearance-menu" id="appearance-menu">
+                        <button class="appearance-option" data-theme="system">
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M8 2v12"/><path d="M8 2a6 6 0 0 1 0 12" fill="currentColor" opacity="0.3"/></svg>
+                            System
+                        </button>
+                        <button class="appearance-option" data-theme="light">
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/></svg>
+                            Light
+                        </button>
+                        <button class="appearance-option" data-theme="dark">
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 8.5A6.5 6.5 0 0 1 7.5 2 6.5 6.5 0 1 0 14 8.5z"/></svg>
+                            Dark
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+    <main class="site-main">
+        <div class="container">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+    <footer class="site-footer">
+        <div class="container">
+            <p class="footer-text">
+                Local processing. Transcription runs on this computer. Temporary audio is deleted automatically.
+            </p>
+        </div>
+    </footer>
+    <script>
+    (function() {
+        var btn = document.getElementById('appearance-btn');
+        var menu = document.getElementById('appearance-menu');
+        var icons = {
+            system: document.getElementById('appearance-icon-system'),
+            light: document.getElementById('appearance-icon-light'),
+            dark: document.getElementById('appearance-icon-dark'),
+        };
+
+        function getTheme() {
+            return localStorage.getItem('ytx-theme') || 'system';
+        }
+
+        function setIcon(theme) {
+            Object.keys(icons).forEach(function(k) {
+                if (icons[k]) icons[k].style.display = 'none';
+            });
+            if (icons[theme]) icons[theme].style.display = '';
+        }
+
+        function applyTheme(theme) {
+            if (theme === 'system') {
+                document.documentElement.removeAttribute('data-theme');
+            } else {
+                document.documentElement.setAttribute('data-theme', theme);
+            }
+            localStorage.setItem('ytx-theme', theme);
+            setIcon(theme);
+            menu.querySelectorAll('.appearance-option').forEach(function(opt) {
+                opt.classList.toggle('is-active', opt.getAttribute('data-theme') === theme);
+            });
+        }
+
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            menu.classList.toggle('is-open');
+        });
+
+        document.addEventListener('click', function() {
+            menu.classList.remove('is-open');
+        });
+
+        menu.querySelectorAll('.appearance-option').forEach(function(opt) {
+            opt.addEventListener('click', function() {
+                applyTheme(this.getAttribute('data-theme'));
+                menu.classList.remove('is-open');
+            });
+        });
+
+        applyTheme(getTheme());
+    })();
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

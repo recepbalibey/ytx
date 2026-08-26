@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+{% block title %}YTX{% endblock %}
+
+{% block content %}
+<div class="transcript-page">
+    <div class="breadcrumb">
+        <a href="/jobs/{{ job.id }}">&larr; Back to results</a>
+    </div>
+
+    <div class="transcript-header">
+        <h1>{{ video.title }}</h1>
+        <div class="transcript-meta">
+            {% if transcript_data %}
+                {% if transcript_data.video.channel and transcript_data.video.channel.name %}
+                    <span class="meta-item">{{ transcript_data.video.channel.name }}</span>
+                    <span class="meta-sep">&middot;</span>
+                {% endif %}
+                {% if transcript_data.video.duration_seconds %}
+                    <span class="meta-item">{{ '%d' | format(transcript_data.video.duration_seconds // 60) }}:{{ '%02d' | format(transcript_data.video.duration_seconds % 60) }}</span>
+                    <span class="meta-sep">&middot;</span>
+                {% endif %}
+                <span class="meta-item">{{ transcript_data.transcript.language_name }}</span>
+                <span class="meta-sep">&middot;</span>
+                <span class="meta-item">{{ transcript_data.transcript.source | replace('_', ' ') | title }}</span>
+            {% elif transcript_markdown %}
+                <span class="meta-item">Markdown transcript</span>
+            {% endif %}
+            {% if video.source_url or (transcript_data and transcript_data.video.url) %}
+                <span class="meta-sep">&middot;</span>
+                <a href="{{ video.source_url or transcript_data.video.url }}" target="_blank" rel="noopener" class="meta-link">YouTube &#8599;</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="transcript-toolbar">
+        <div class="search-box">
+            <input type="text" id="transcript-search" placeholder="Search transcript..." aria-label="Search transcript">
+            <span id="search-count" class="search-count"></span>
+            <button id="search-prev" class="btn btn--sm btn--ghost" style="display:none;" aria-label="Previous match">&uarr;</button>
+            <button id="search-next" class="btn btn--sm btn--ghost" style="display:none;" aria-label="Next match">&darr;</button>
+        </div>
+        <div class="toolbar-actions">
+            {% if has_timestamps %}
+            <button class="btn btn--sm btn--ghost" id="toggle-timestamps">Hide timestamps</button>
+            {% endif %}
+            <button class="btn btn--sm btn--ghost" id="copy-btn">Copy</button>
+            {% if video.output_paths %}
+            <button class="btn btn--sm btn--ghost" id="download-btn">Download</button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div id="transcript-content" class="transcript-content">
+        {% if transcript_data %}
+        {% for seg in transcript_data.transcript.segments %}
+        <div class="segment" data-index="{{ loop.index0 }}">
+            {% if seg.start > 0 %}
+            <span class="timestamp" data-start="{{ seg.start }}">
+                {{ '%02d' | format((seg.start // 60) | int) }}:{{ '%02d' | format((seg.start % 60) | int) }}
+            </span>
+            {% endif %}
+            <span class="segment-text">{{ seg.text }}</span>
+        </div>
+        {% endfor %}
+        {% elif transcript_markdown %}
+        <div class="transcript-parsed" id="transcript-parsed"></div>
+        <script>
+        (function() {
+            const raw = {{ transcript_markdown | tojson }};
+            const container = document.getElementById('transcript-parsed');
+            const lines = raw.split('\n');
+            let html = '';
+            let inBody = false;
+            let bodyLines = [];
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (line.startsWith('## Transcript') || line.startsWith('### Transcript')) {
+                    inBody = true;
+                    continue;
+                }
+                if (inBody) {
+                    bodyLines.push(line);
+                } else if (line.startsWith('# ')) {
+                    // Skip title (already shown in header)
+                } else if (line.startsWith('- **') && line.includes(':**')) {
+                    // Skip metadata lines (already shown in header)
+                } else if (line.trim() === '' || line.trim() === '---') {
+                    // Skip separators and blank lines in header
+                }
+            }
+
+            // Render body
+            const bodyText = bodyLines.join('\n').trim();
+            const paragraphs = bodyText.split(/\n\n+/);
+            paragraphs.forEach(p => {
+                p = p.trim();
+                if (p) {
+                    // Escape HTML
+                    p = p.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    html += '<p>' + p.replace(/\n/g, '<br>') + '</p>';
+                }
+            });
+
+            container.innerHTML = '<div class="tp-body">' + html + '</div>';
+        })();
+        </script>
+        {% else %}
+        <p style="color: var(--text-secondary);">Transcript data not available.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const searchInput = document.getElementById('transcript-search');
+const searchCount = document.getElementById('search-count');
+const searchPrev = document.getElementById('search-prev');
+const searchNext = document.getElementById('search-next');
+let matches = [];
+let currentMatch = -1;
+
+searchInput.addEventListener('input', function() {
+    const query = this.value.trim().toLowerCase();
+    document.querySelectorAll('.segment').forEach(el => {
+        el.classList.remove('highlight', 'search-match');
+    });
+    document.querySelectorAll('.md-search-match').forEach(el => {
+        const parent = el.parentNode;
+        parent.replaceChild(document.createTextNode(el.textContent), el);
+        parent.normalize();
+    });
+    matches = [];
+    currentMatch = -1;
+
+    if (!query) {
+        searchCount.textContent = '';
+        searchPrev.style.display = 'none';
+        searchNext.style.display = 'none';
+        return;
+    }
+
+    document.querySelectorAll('.segment').forEach(el => {
+        const text = el.querySelector('.segment-text').textContent.toLowerCase();
+        if (text.includes(query)) {
+            el.classList.add('search-match');
+            matches.push(el);
+        }
+    });
+
+    const parsedEl = document.getElementById('transcript-parsed');
+    if (parsedEl) {
+        const walker = document.createTreeWalker(parsedEl, NodeFilter.SHOW_TEXT);
+        let node;
+        while (node = walker.nextNode()) {
+            const text = node.textContent.toLowerCase();
+            if (text.includes(query)) {
+                const range = document.createRange();
+                range.selectNodeContents(node);
+                const span = document.createElement('span');
+                span.className = 'md-search-match search-match';
+                range.surroundContents(span);
+                matches.push(span);
+            }
+        }
+    }
+
+    searchCount.textContent = matches.length + ' found';
+    if (matches.length > 0) {
+        searchPrev.style.display = '';
+        searchNext.style.display = '';
+        currentMatch = 0;
+        matches[0].classList.add('highlight');
+        matches[0].scrollIntoView({behavior: 'smooth', block: 'center'});
+    }
+});
+
+searchPrev.addEventListener('click', function() {
+    if (matches.length === 0) return;
+    matches[currentMatch].classList.remove('highlight');
+    currentMatch = (currentMatch - 1 + matches.length) % matches.length;
+    matches[currentMatch].classList.add('highlight');
+    matches[currentMatch].scrollIntoView({behavior: 'smooth', block: 'center'});
+});
+
+searchNext.addEventListener('click', function() {
+    if (matches.length === 0) return;
+    matches[currentMatch].classList.remove('highlight');
+    currentMatch = (currentMatch + 1) % matches.length;
+    matches[currentMatch].classList.add('highlight');
+    matches[currentMatch].scrollIntoView({behavior: 'smooth', block: 'center'});
+});
+
+const toggleBtn = document.getElementById('toggle-timestamps');
+if (toggleBtn) {
+    let timestampsVisible = true;
+    toggleBtn.addEventListener('click', function() {
+        timestampsVisible = !timestampsVisible;
+        document.querySelectorAll('.timestamp').forEach(el => {
+            el.style.display = timestampsVisible ? 'inline-block' : 'none';
+        });
+        this.textContent = timestampsVisible ? 'Hide timestamps' : 'Show timestamps';
+    });
+}
+
+document.getElementById('copy-btn').addEventListener('click', function() {
+    let text = '';
+    const segments = document.querySelectorAll('.segment .segment-text');
+    if (segments.length > 0) {
+        text = Array.from(segments).map(el => el.textContent).join('\n');
+    } else {
+        const parsedEl = document.getElementById('transcript-parsed');
+        if (parsedEl) {
+            text = parsedEl.textContent;
+        }
+    }
+    if (text) {
+        navigator.clipboard.writeText(text).then(() => {
+            const btn = this;
+            btn.textContent = 'Copied';
+            setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+        });
+    }
+});
+
+const downloadBtn = document.getElementById('download-btn');
+if (downloadBtn) {
+    downloadBtn.addEventListener('click', function() {
+        const paths = {{ video.output_paths | tojson if video.output_paths else [] }};
+        const mdPath = paths.find(p => p.endsWith('.md')) || paths.find(p => p.endsWith('.txt')) || paths[0];
+        if (mdPath) {
+            const fname = mdPath.split('/').pop();
+            window.location.href = '/jobs/{{ job.id }}/files/{{ video.id }}/' + fname;
+        }
+    });
+}
+</script>
+{% endblock %}

@@ -94,24 +94,10 @@
         </div>
     </div>
 
-    <div class="output-section" style="margin-top: 1rem;">
-        <div class="option-group" style="grid-column: 1 / -1;">
-            <label class="checkbox-label">Output</label>
-            <div class="checkbox-desc" style="margin-bottom: 0.5rem;">
-                Clean transcript: Markdown without timestamps, ready for AI tools.
-                <span class="recommended-badge">Recommended</span>
-            </div>
-            <div class="checkbox-desc" style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
-                No extra format selection is required. YTX always creates a clean Markdown transcript.
-                For playlists/channels in flat mode, YTX also creates output.md with all completed transcripts combined.
-            </div>
-        </div>
-    </div>
-
-    <button type="button" class="more-options-toggle" id="more-settings-toggle" aria-expanded="true">
-        <span class="chevron">&#9660;</span> More settings
+    <button type="button" class="more-options-toggle" id="more-settings-toggle" aria-expanded="false">
+        <span class="chevron">&#9654;</span> More settings
     </button>
-    <div class="more-options-content" id="more-settings-content">
+    <div class="more-options-content is-closed" id="more-settings-content">
         <div class="options-grid">
             <div class="option-group" style="grid-column: 1 / -1;">
                 <label for="youtube_auth">YouTube access</label>
@@ -624,7 +610,7 @@ function showSelectionScreen() {
     updateSelectionDuration();
 }
 
-// More settings toggle (open by default)
+// More settings toggle (closed by default)
 document.getElementById('more-settings-toggle').addEventListener('click', function() {
     const content = document.getElementById('more-settings-content');
     const isClosed = content.classList.toggle('is-closed');

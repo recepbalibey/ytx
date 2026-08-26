@@ -813,18 +813,16 @@ Hello world without timestamps
 class TestSettingsHierarchy:
     """Test the settings hierarchy on the homepage."""
 
-    def test_more_settings_open_by_default(self, client):
-        """More settings section should be open by default."""
+    def test_more_settings_closed_by_default(self, client):
+        """More settings section should be closed by default."""
         resp = client.get("/")
         assert 'id="more-settings-toggle"' in resp.text
-        assert 'aria-expanded="true"' in resp.text
-        # Content should NOT have is-closed class
+        assert 'aria-expanded="false"' in resp.text
         assert 'id="more-settings-content"' in resp.text
-        # Check that the content div doesn't have is-closed
         import re
         content_match = re.search(r'id="more-settings-content"[^>]*class="([^"]*)"', resp.text)
         if content_match:
-            assert 'is-closed' not in content_match.group(1)
+            assert 'is-closed' in content_match.group(1)
 
     def test_advanced_formats_closed_by_default(self, client):
         """Advanced export formats should be closed by default."""

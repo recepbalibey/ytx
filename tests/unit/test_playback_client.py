@@ -120,8 +120,9 @@ class TestPipelinePlaybackClientHandling:
 
     @patch("ytx.pipeline.fetch_captions")
     @patch("ytx.pipeline.download_audio")
+    @patch("ytx.pipeline.FasterWhisperProvider.is_available", return_value=True)
     def test_playback_error_sets_flag_and_pauses(
-        self, mock_dl, mock_fetch
+        self, mock_available, mock_dl, mock_fetch
     ):
         """When playback client error occurs, batch should pause."""
         from ytx.exceptions import NoCaptionsError
@@ -217,8 +218,9 @@ class TestPipelinePlaybackClientHandling:
 
     @patch("ytx.pipeline.fetch_captions")
     @patch("ytx.pipeline.download_audio")
+    @patch("ytx.pipeline.FasterWhisperProvider.is_available", return_value=True)
     def test_playback_retry_also_fails(
-        self, mock_dl, mock_fetch
+        self, mock_available, mock_dl, mock_fetch
     ):
         """When retry also fails, batch should pause."""
         from ytx.exceptions import NoCaptionsError
@@ -248,8 +250,9 @@ class TestPipelinePlaybackClientHandling:
 
     @patch("ytx.pipeline.fetch_captions")
     @patch("ytx.pipeline.download_audio")
+    @patch("ytx.pipeline.FasterWhisperProvider.is_available", return_value=True)
     def test_no_retry_without_browser_auth(
-        self, mock_dl, mock_fetch
+        self, mock_available, mock_dl, mock_fetch
     ):
         """Without browser auth, no retry should happen."""
         from ytx.exceptions import NoCaptionsError

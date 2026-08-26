@@ -96,6 +96,10 @@ def _run_job_thread(job: Job, params: dict) -> None:
             output_layout=OutputLayout(params.get("output_layout", "flat")),
             selected_video_ids=params.get("selected_video_ids"),
             youtube_auth=YouTubeAuthMode(params.get("youtube_auth", "auto")),
+            channel_contains=params.get("channel_contains"),
+            title_contains=params.get("title_contains"),
+            min_duration=params.get("min_duration"),
+            max_duration=params.get("max_duration"),
         )
         job._pipeline = pipeline
         job.output_directory = params["output_dir"]
@@ -216,6 +220,33 @@ async def detect_browsers():
     })
 
 
+@app.get("/api/search")
+async def search_transcripts(query: str = "", output_dir: str = "./output"):
+    """Search local JSON transcripts and return matching timestamped segments."""
+    if not query.strip():
+        raise HTTPException(400, "Search text is required")
+    root = Path(output_dir).resolve()
+    if not root.is_dir():
+        raise HTTPException(404, "Output folder not found")
+    results = []
+    for path in root.rglob("*.json"):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        video = data.get("video", {})
+        for segment in data.get("transcript", {}).get("segments", []):
+            text = str(segment.get("text", ""))
+            if query.casefold() in text.casefold():
+                results.append({
+                    "title": video.get("title", path.stem),
+                    "url": video.get("url", ""),
+                    "start": segment.get("start", 0),
+                    "text": text,
+                })
+    return JSONResponse({"results": results[:200]})
+
+
 @app.get("/api/discover")
 async def discover_videos(url: str = ""):
     """Discover videos in a playlist/channel for manual selection."""
@@ -319,10 +350,20 @@ async def create_job(request: Request):
         "output_layout": body.get("output_layout", "flat"),
         "selected_video_ids": body.get("selected_video_ids"),
         "youtube_auth": youtube_auth,
+        "channel_contains": body.get("channel_contains") or None,
+        "title_contains": body.get("title_contains") or None,
+        "min_duration": body.get("min_duration") or None,
+        "max_duration": body.get("max_duration") or None,
     }
 
     if params["latest"] is not None:
         params["latest"] = int(params["latest"])
+    for key in ("min_duration", "max_duration"):
+        if params[key] is not None:
+            try:
+                params[key] = float(params[key])
+            except (TypeError, ValueError) as e:
+                raise HTTPException(400, f"{key} must be a number") from e
 
     try:
         job = job_manager.create_job(url)

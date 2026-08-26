@@ -157,6 +157,22 @@
                 <label for="before">Published before</label>
                 <input type="date" name="before" id="before">
             </div>
+            <div class="option-group">
+                <label for="title_contains">Title contains</label>
+                <input type="text" id="title_contains" placeholder="for example: security">
+            </div>
+            <div class="option-group">
+                <label for="channel_contains">Channel contains</label>
+                <input type="text" id="channel_contains" placeholder="for example: IEEE">
+            </div>
+            <div class="option-group">
+                <label for="min_duration">Minimum duration in seconds</label>
+                <input type="number" id="min_duration" min="0" step="1">
+            </div>
+            <div class="option-group">
+                <label for="max_duration">Maximum duration in seconds</label>
+                <input type="number" id="max_duration" min="0" step="1">
+            </div>
         </div>
     </div>
 
@@ -450,6 +466,10 @@ function buildRequestBody() {
     const language = document.getElementById('language').value || null;
     const after = document.getElementById('after').value || null;
     const before = document.getElementById('before').value || null;
+    const titleContains = document.getElementById('title_contains').value.trim() || null;
+    const channelContains = document.getElementById('channel_contains').value.trim() || null;
+    const minDuration = document.getElementById('min_duration').value || null;
+    const maxDuration = document.getElementById('max_duration').value || null;
     const outputDir = document.getElementById('output_dir').value.trim() || './output';
     const model = document.getElementById('model').value || null;
     const transcribeMissing = document.getElementById('transcribe_missing').checked;
@@ -472,6 +492,10 @@ function buildRequestBody() {
     };
     if (after) body.after = after;
     if (before) body.before = before;
+    if (titleContains) body.title_contains = titleContains;
+    if (channelContains) body.channel_contains = channelContains;
+    if (minDuration) body.min_duration = minDuration;
+    if (maxDuration) body.max_duration = maxDuration;
     if (model) body.model = model;
     return body;
 }

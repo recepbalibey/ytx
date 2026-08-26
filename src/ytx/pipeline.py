@@ -127,6 +127,10 @@ class Pipeline:
         output_layout: OutputLayout = OutputLayout.FLAT,
         selected_video_ids: list[str] | None = None,
         youtube_auth: YouTubeAuthMode = YouTubeAuthMode.AUTO,
+        channel_contains: str | None = None,
+        title_contains: str | None = None,
+        min_duration: float | None = None,
+        max_duration: float | None = None,
     ) -> None:
         self.output_dir = output_dir
         self.formats = formats
@@ -147,6 +151,10 @@ class Pipeline:
         self.output_layout = output_layout
         self.selected_video_ids = selected_video_ids
         self.youtube_auth = youtube_auth
+        self.channel_contains = channel_contains.casefold() if channel_contains else None
+        self.title_contains = title_contains.casefold() if title_contains else None
+        self.min_duration = min_duration
+        self.max_duration = max_duration
 
         self._transcriber: FasterWhisperProvider | None = None
         self._summary = JobSummary()
@@ -215,6 +223,23 @@ class Pipeline:
             return videos
         selected_set = set(self.selected_video_ids)
         return [v for v in videos if v.id in selected_set]
+
+    def _apply_metadata_filters(self, videos: list[VideoMetadata]) -> list[VideoMetadata]:
+        """Keep videos matching optional channel, title, and duration filters."""
+        def matches(video: VideoMetadata) -> bool:
+            if self.channel_contains and self.channel_contains not in video.channel.name.casefold():
+                return False
+            if self.title_contains and self.title_contains not in video.title.casefold():
+                return False
+            duration = video.duration_seconds
+            if self.min_duration is not None and (duration is None or duration < self.min_duration):
+                return False
+            return not (
+                self.max_duration is not None
+                and (duration is None or duration > self.max_duration)
+            )
+
+        return [video for video in videos if matches(video)]
 
     def _get_transcriber(self) -> FasterWhisperProvider:
         """Lazy-load the transcription provider."""
@@ -351,6 +376,7 @@ class Pipeline:
         videos = discover_playlist_videos(
             url, after=self.after, before=self.before, latest=discover_latest
         )
+        videos = self._apply_metadata_filters(videos)
         self._summary.total_discovered = len(videos)
         console.print(f"Found {len(videos)} videos in playlist")
 
@@ -440,6 +466,7 @@ class Pipeline:
         videos = discover_channel_videos(
             url, after=self.after, before=self.before, latest=discover_latest
         )
+        videos = self._apply_metadata_filters(videos)
         self._summary.total_discovered = len(videos)
         console.print(f"Found {len(videos)} videos from channel")
 

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import signal
 import webbrowser
 from datetime import datetime
+from pathlib import Path
 
 import click
 from rich.console import Console
@@ -78,6 +80,10 @@ def cli(ctx: click.Context) -> None:
 )
 @click.option("--after", default=None, help="Videos published after date (YYYY-MM-DD)")
 @click.option("--before", default=None, help="Videos published before date (YYYY-MM-DD)")
+@click.option("--channel", "channel_contains", help="Only videos whose channel contains this text")
+@click.option("--title", "title_contains", help="Only videos whose title contains this text")
+@click.option("--min-duration", type=float, help="Only videos at least this many seconds long")
+@click.option("--max-duration", type=float, help="Only videos at most this many seconds long")
 @click.option("--skip-existing", is_flag=True, help="Skip previously processed videos")
 @click.option(
     "--model", "-m", default=None,
@@ -111,6 +117,10 @@ def extract_cmd(
     latest: int | None,
     after: str | None,
     before: str | None,
+    channel_contains: str | None,
+    title_contains: str | None,
+    min_duration: float | None,
+    max_duration: float | None,
     skip_existing: bool,
     model: str | None,
     combine_jsonl: bool,
@@ -147,6 +157,10 @@ def extract_cmd(
         latest=latest,
         after=after,
         before=before,
+        channel_contains=channel_contains,
+        title_contains=title_contains,
+        min_duration=min_duration,
+        max_duration=max_duration,
         skip_existing=skip_existing,
         model=model,
         combine_jsonl=combine_jsonl,
@@ -194,6 +208,32 @@ def web_cmd(host: str, port: int, no_browser: bool) -> None:
     uvicorn.run(fastapi_app, host=host, port=port, log_level="warning")
 
 
+@cli.command("search")
+@click.argument("query")
+@click.option("--output", "output_dir", default=DEFAULT_OUTPUT_DIR, help="Folder to search")
+def search_cmd(query: str, output_dir: str) -> None:
+    """Search saved JSON transcripts and show matching timestamps."""
+    needle = query.casefold()
+    matches = 0
+    for path in Path(output_dir).rglob("*.json"):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        video = data.get("video", {})
+        for segment in data.get("transcript", {}).get("segments", []):
+            text = str(segment.get("text", ""))
+            if needle in text.casefold():
+                timestamp = float(segment.get("start", 0))
+                console.print(
+                    f"[bold]{video.get('title', path.stem)}[/bold] "
+                    f"[{timestamp:.1f}s] {text}\n{video.get('url', '')}"
+                )
+                matches += 1
+    if matches == 0:
+        console.print("No matches found.")
+
+
 def _run_extraction(
     url: str,
     output: str = DEFAULT_OUTPUT_DIR,
@@ -205,6 +245,10 @@ def _run_extraction(
     latest: int | None = None,
     after: str | None = None,
     before: str | None = None,
+    channel_contains: str | None = None,
+    title_contains: str | None = None,
+    min_duration: float | None = None,
+    max_duration: float | None = None,
     skip_existing: bool = False,
     model: str | None = None,
     combine_jsonl: bool = False,
@@ -249,6 +293,10 @@ def _run_extraction(
             combine_jsonl=combine_jsonl,
             after=after_dt,
             before=before_dt,
+            channel_contains=channel_contains,
+            title_contains=title_contains,
+            min_duration=min_duration,
+            max_duration=max_duration,
             latest=latest,
             delay=delay,
             verbose=verbose,

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Search transcripts | YTX{% endblock %}
+{% block content %}
+<div class="home-hero"><h1>Search transcripts</h1><p class="lead">Find text in saved local transcripts.</p></div>
+<div class="form-surface">
+  <form id="search-form" class="options-grid">
+    <div class="option-group"><label for="query">Search text</label><input id="query" required autofocus></div>
+    <div class="option-group"><label for="output-dir">Output folder</label><input id="output-dir" value="./output"></div>
+    <div class="option-group"><button class="btn btn--primary" type="submit">Search</button></div>
+  </form>
+  <p id="search-status"></p><div id="search-results"></div>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+document.getElementById('search-form').addEventListener('submit', async function(e) {
+  e.preventDefault(); const status = document.getElementById('search-status'); const results = document.getElementById('search-results');
+  status.textContent = 'Searching...'; results.replaceChildren();
+  const query = document.getElementById('query').value; const output = document.getElementById('output-dir').value;
+  const response = await fetch('/api/search?query=' + encodeURIComponent(query) + '&output_dir=' + encodeURIComponent(output)); const data = await response.json();
+  if (!response.ok) { status.textContent = data.detail; return; } status.textContent = data.results.length + ' matches';
+  data.results.forEach(function(item) { const article = document.createElement('article'); const title = document.createElement('h3'); const link = document.createElement('a'); link.href = item.url; link.textContent = item.title + ' [' + Number(item.start).toFixed(1) + 's]'; link.target = '_blank'; const text = document.createElement('p'); text.textContent = item.text; title.appendChild(link); article.append(title, text); results.appendChild(article); });
+});
+</script>{% endblock %}

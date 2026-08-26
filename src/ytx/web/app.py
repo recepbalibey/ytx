@@ -192,6 +192,12 @@ async def index(request: Request):
     )
 
 
+@app.get("/search", response_class=HTMLResponse)
+async def search_page(request: Request):
+    """Show the local transcript search page."""
+    return templates.TemplateResponse(request, "search.html")
+
+
 @app.get("/api/detect-url")
 async def detect_url(url: str = ""):
     """Detect URL type for live feedback."""

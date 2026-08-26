@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ytx"
-version = "0.1.0"
+version = "0.2.0"
 description = "Convert YouTube videos, playlists, and channels into structured transcript datasets"
 readme = "README.md"
 license = "MIT"

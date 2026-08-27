@@ -908,6 +908,31 @@ class TestResultCountBug:
             assert 'let totalCount = 655' in resp.text
 
 
+class TestResultViewerActions:
+    """Regression tests for View actions on completed transcript results."""
+
+    def test_result_page_links_completed_files_to_existing_viewer(self, client, fresh_manager):
+        """Flat Markdown and structured files must use the video-id viewer route."""
+        resp = client.get("/")
+        assert resp.status_code == 200
+
+        job_page = client.get("/jobs/not-a-job")
+        assert job_page.status_code == 404
+
+        from unittest.mock import patch
+
+        with patch("ytx.web.app._run_job_thread"):
+            created = client.post("/jobs", json={
+                "url": "https://www.youtube.com/watch?v=test1234567",
+            })
+            page = client.get(f"/jobs/{created.json()['job_id']}")
+
+        assert "View transcript" in page.text
+        assert "/videos/" in page.text
+        assert "\\.(md|json|txt)$" in page.text
+        assert "v.status === 'complete' && readablePath" in page.text
+
+
 class TestPausedState:
     """Test the paused job state."""
 

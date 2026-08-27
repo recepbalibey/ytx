@@ -480,34 +480,34 @@ async def get_video_transcript(request: Request, job_id: str, video_id: str):
     if not video:
         raise HTTPException(404, "Video not found")
 
-    # Find transcript: prefer JSON, fall back to Markdown, then TXT
+    # Prefer the normal user-facing Markdown file, then JSON, then TXT.
     transcript_data = None
     transcript_markdown = None
     has_timestamps = False
 
     for path in video.output_paths:
-        if path.endswith(".json") and os.path.exists(path):
+        if path.endswith(".md") and os.path.exists(path):
             try:
                 with open(path, encoding="utf-8") as f:
-                    data = json.load(f)
-                if "transcript" in data and "segments" in data["transcript"]:
-                    transcript_data = data
-                    has_timestamps = any(
-                        seg.get("start", 0) > 0
-                        for seg in data["transcript"].get("segments", [])
-                    )
-                    break
-            except (json.JSONDecodeError, OSError):
+                    transcript_markdown = f.read()
+                break
+            except OSError:
                 pass
 
-    if transcript_data is None:
+    if transcript_markdown is None:
         for path in video.output_paths:
-            if path.endswith(".md") and os.path.exists(path):
+            if path.endswith(".json") and os.path.exists(path):
                 try:
                     with open(path, encoding="utf-8") as f:
-                        transcript_markdown = f.read()
-                    break
-                except OSError:
+                        data = json.load(f)
+                    if "transcript" in data and "segments" in data["transcript"]:
+                        transcript_data = data
+                        has_timestamps = any(
+                            seg.get("start", 0) > 0
+                            for seg in data["transcript"].get("segments", [])
+                        )
+                        break
+                except (json.JSONDecodeError, OSError):
                     pass
 
     if transcript_data is None and transcript_markdown is None:

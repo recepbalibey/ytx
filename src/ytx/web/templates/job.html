@@ -510,13 +510,17 @@ function showDownloadCards(videos) {
             document.getElementById('result-downloads').style.display = 'block';
             const cards = document.getElementById('download-cards');
 
-            // Primary: Download transcript (md)
-            const mdPath = v.output_paths.find(p => p.endsWith('transcript.md'));
-            if (mdPath) {
-                const fname = mdPath.split('/').pop();
+            const readablePath = v.output_paths.find(p => /\.(md|json|txt)$/i.test(p));
+            if (v.status === 'complete' && readablePath) {
+                const view = document.createElement('a');
+                view.href = '/jobs/' + JOB_ID + '/videos/' + v.id;
+                view.className = 'download-card download-card--primary';
+                view.textContent = 'View transcript';
+                cards.appendChild(view);
+                const fname = readablePath.split('/').pop();
                 const a = document.createElement('a');
                 a.href = '/jobs/' + JOB_ID + '/files/' + v.id + '/' + fname;
-                a.className = 'download-card download-card--primary';
+                a.className = 'download-card';
                 a.innerHTML = '<span class="dl-icon">↓</span> Download transcript';
                 cards.appendChild(a);
             }
@@ -524,7 +528,7 @@ function showDownloadCards(videos) {
             // Secondary: other formats
             v.output_paths.forEach(function(path) {
                 const fname = path.split('/').pop();
-                if (fname === 'transcript.md') return; // already shown as primary
+                if (fname === (readablePath || '').split('/').pop()) return;
                 const ext = fname.replace('transcript.', '').toUpperCase();
                 const a = document.createElement('a');
                 a.href = '/jobs/' + JOB_ID + '/files/' + v.id + '/' + fname;
@@ -550,14 +554,11 @@ function showDownloadCards(videos) {
             if (v.source) metaHtml += '<span class="vr-source">' + v.source.replace(/_/g, ' ') + '</span>';
 
             let actionsHtml = '';
-            if (v.status === 'complete') {
+            const readablePath = (v.output_paths || []).find(p => /\.(md|json|txt)$/i.test(p));
+            if (v.status === 'complete' && readablePath) {
                 actionsHtml = '<a href="/jobs/' + JOB_ID + '/videos/' + v.id + '" class="btn btn--sm btn--ghost">View</a>';
-                // Find md path for download
-                const mdPath = (v.output_paths || []).find(p => p.endsWith('transcript.md'));
-                if (mdPath) {
-                    const fname = mdPath.split('/').pop();
-                    actionsHtml += '<a href="/jobs/' + JOB_ID + '/files/' + v.id + '/' + fname + '" class="btn btn--sm btn--ghost">Download</a>';
-                }
+                const fname = readablePath.split('/').pop();
+                actionsHtml += '<a href="/jobs/' + JOB_ID + '/files/' + v.id + '/' + fname + '" class="btn btn--sm btn--ghost">Download</a>';
             }
 
             row.innerHTML =

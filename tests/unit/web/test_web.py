@@ -767,10 +767,10 @@ Hello world without timestamps
         assert "Hello world without timestamps" in resp.text
 
     @patch("ytx.web.app._run_job_thread")
-    def test_transcript_viewer_prefers_json_over_md(
+    def test_transcript_viewer_prefers_markdown_over_json(
         self, mock_thread, client, fresh_manager, tmp_path
     ):
-        """When both JSON and MD exist, JSON should be preferred."""
+        """When both JSON and MD exist, Markdown should be preferred."""
         import json
 
         job_id = self._create_job_with_video(client, fresh_manager, mock_thread)
@@ -807,7 +807,7 @@ Hello world without timestamps
 
         resp = client.get(f"/jobs/{job_id}/videos/vid1")
         assert resp.status_code == 200
-        assert "From JSON" in resp.text
+        assert "From Markdown" in resp.text
 
 
 class TestSettingsHierarchy:
